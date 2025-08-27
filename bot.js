@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-const token = '7757998180:AAEMSSuB_E7Mh_Q7qlFLMf7W13m8cnPvj10'; // 🛠 Tokeningizni shu yerga qo'ying
+const token = '7073645826:AAGYrJ4kSUWMoXfBFsMdnF8fa5bo4azW9eo'; // 🛠 Tokeningizni shu yerga qo'ying
 const ownerId = 6340507558;
 let adminList = [ownerId]; // Boshlang'ichda faqat siz
 
