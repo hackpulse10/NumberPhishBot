@@ -1,130 +1,123 @@
 const TelegramBot = require('node-telegram-bot-api');
+const fs = require('fs');
+const path = require('path');
 
-const token = '7073645826:AAGYrJ4kSUWMoXfBFsMdnF8fa5bo4azW9eo'; // 🛠 Tokeningizni shu yerga qo'ying
-const ownerId = 6340507558;
-let adminList = [ownerId]; // Boshlang'ichda faqat siz
+// Bot tokenini shu yerga yozing
+const token = "7073645826:AAFlFBzQXmPraHKIQK2xKYD_OTjBl0Xi3l8";
+
+// Admin ID
+const ADMIN_ID = 6340507558;
 
 const bot = new TelegramBot(token, { polling: true });
-let state = {};
 
-// /start
+const infoPath = path.join(__dirname, "info.json");
+
+// Fayl mavjud bo'lmasa bo'sh massiv ochib qo'yamiz
+if (!fs.existsSync(infoPath)) {
+    fs.writeFileSync(infoPath, JSON.stringify([], null, 2));
+}
+
+// Bosqichlarni saqlash
+let steps = {};
+
+// /start komandasi
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const firstName = msg.from.first_name || 'Foydalanuvchi';
+    let users = JSON.parse(fs.readFileSync(infoPath));
 
-    const keyboard = [[{ text: "⏳ Ro'yxatdan o'tish", request_contact: true }]];
-    if (userId === ownerId) keyboard.push([{ text: "📋 Admin panel" }]);
+    // Foydalanuvchi oldin ro'yxatdan o'tganmi?
+    if (users.find(u => u.id === chatId)) {
+        return bot.sendMessage(chatId, "✅ Siz allaqachon ro‘yxatdan o'tgansiz!");
+    }
 
-    bot.sendMessage(chatId, `👋 *Assalomu alaykum hurmatli ${firstName}!*  
-
-Quyidagi *"⏳ Ro'yxatdan o'tish"* tugmasini bosib, telefon raqamingizni yuboring.`, {
-        parse_mode: 'Markdown',
-        reply_markup: {
-            keyboard,
-            resize_keyboard: true,
-            one_time_keyboard: true
-        }
-    });
+    steps[chatId] = { step: 1, data: {} };
+    bot.sendMessage(chatId, "Ismingizni kiriting (faqat harflar):");
 });
 
-// Kontakt yuborilganda
-bot.on('contact', (msg) => {
-    const contact = msg.contact;
-    const senderId = msg.from.id;
+// Oddiy xabarlarni ushlash
+bot.on("message", (msg) => {
     const chatId = msg.chat.id;
-    const senderName = msg.from.first_name || 'Noma’lum';
-    const contactName = contact.first_name || 'Noma’lum';
-    const phoneNumber = contact.phone_number || 'Noma’lum';
-
-    const text = `📥 *Yangi foydalanuvchi ma'lumoti:*
-
-🧑 Ismi: [${senderName}](tg://user?id=${senderId})
-🔢 Telegram ID: \`${senderId}\`
-🌐 Profil: [Telegram havola](tg://user?id=${senderId})
-📱 Telefon raqami: ${phoneNumber}
-👤 Kontakt nomi: ${contactName}`;
-
-    // Adminlarga yuborish (lekin siz yuborgan bo‘lsangiz, boshqa adminlarga yuborilmaydi)
-    adminList.forEach(adminId => {
-        if (adminId !== senderId) {
-            if (senderId !== ownerId || adminId === ownerId) {
-                bot.sendMessage(adminId, text, { parse_mode: 'Markdown' });
-            }
-        }
-    });
-
-    bot.sendMessage(chatId, `✅ Sizning raqamingiz muvaffaqiyatli qabul qilindi!`);
-});
-
-// Boshqa xabarlar
-bot.on('message', (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
     const text = msg.text;
 
-    if (userId !== ownerId) return;
+    if (!steps[chatId]) return;
 
-    if (text === '📋 Admin panel') {
-        bot.sendMessage(chatId, "⚙️ Admin panel:", {
+    let userStep = steps[chatId];
+
+    // Ism
+    if (userStep.step === 1) {
+        if (!/^[A-Za-z\u0400-\u04FF\s]+$/.test(text)) {
+            return bot.sendMessage(chatId, "❌ Ism faqat harflardan iborat bo‘lishi kerak. Qaytadan kiriting:");
+        }
+        userStep.data.ism = text;
+        userStep.step = 2;
+        bot.sendMessage(chatId, "Familiyangizni kiriting (faqat harflar):");
+    }
+    // Familiya
+    else if (userStep.step === 2) {
+        if (!/^[A-Za-z\u0400-\u04FF\s]+$/.test(text)) {
+            return bot.sendMessage(chatId, "❌ Familiya faqat harflardan iborat bo‘lishi kerak. Qaytadan kiriting:");
+        }
+        userStep.data.familiya = text;
+        userStep.step = 3;
+
+        bot.sendMessage(chatId, "📱 Telefon raqamingizni jo‘nating:", {
             reply_markup: {
                 keyboard: [
-                    [{ text: "✳️ Admin qo‘shish" }],
-                    [{ text: "🗑 Admin o‘chirish" }],
-                    [{ text: "📄 Adminlar ro'yxati" }],
-                    [{ text: "🔙 Ortga" }]
+                    [{ text: "📲 Raqamni yuborish", request_contact: true }]
                 ],
                 resize_keyboard: true,
                 one_time_keyboard: true
             }
         });
     }
+});
 
-    // Qo‘shish holati
-    else if (text === '✳️ Admin qo‘shish') {
-        state[userId] = 'add_admin';
-        bot.sendMessage(chatId, "🆔 Yangi adminning Telegram ID sini kiriting:");
-    }
+// Kontaktni olish
+bot.on("contact", (msg) => {
+    const chatId = msg.chat.id;
+    if (!steps[chatId] || steps[chatId].step !== 3) return;
 
-    // O‘chirish holati
-    else if (text === '🗑 Admin o‘chirish') {
-        state[userId] = 'remove_admin';
-        bot.sendMessage(chatId, "❌ O‘chiriladigan adminning Telegram ID sini kiriting:");
-    }
+    let userStep = steps[chatId];
+    let contact = msg.contact;
 
-    // Adminlar ro‘yxati
-    else if (text === '📄 Adminlar ro\'yxati') {
-        let listText = `📋 *Hozirgi adminlar ro'yxati:*\n\n`;
+    userStep.data.telefon = contact.phone_number;
+    userStep.data.id = chatId;
+    userStep.data.username = msg.from.username || "mavjud emas";
+    userStep.data.first_name = msg.from.first_name || "mavjud emas";
+    userStep.data.last_name = msg.from.last_name || "mavjud emas";
 
-        adminList.forEach((id, i) => {
-            const marker = id === ownerId ? '👑 Asosiy admin' : `#${i}`;
-            listText += `👤 [${id}](tg://user?id=${id}) — ${marker}\n`;
-        });
+    // Faylga yozish
+    let users = JSON.parse(fs.readFileSync(infoPath));
+    users.push(userStep.data);
+    fs.writeFileSync(infoPath, JSON.stringify(users, null, 2));
 
-        bot.sendMessage(chatId, listText, { parse_mode: 'Markdown' });
-    }
+    bot.sendMessage(chatId, `🎉 Xush kelibsiz, ${userStep.data.ism}!`);
 
-    // Admin qo‘shish
-    else if (state[userId] === 'add_admin') {
-        const newId = parseInt(text);
-        if (!adminList.includes(newId)) {
-            adminList.push(newId);
-            bot.sendMessage(chatId, `✅ Admin qo‘shildi: \`${newId}\``, { parse_mode: 'Markdown' });
-        } else {
-            bot.sendMessage(chatId, `⚠️ Bu ID allaqachon admin.`);
+    // Bosqichni tozalash
+    delete steps[chatId];
+});
+
+// Admin panel
+bot.onText(/\/admin/, (msg) => {
+    const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) return;
+
+    bot.sendMessage(chatId, "Admin panel:", {
+        reply_markup: {
+            keyboard: [
+                ["📋 Users"],
+            ],
+            resize_keyboard: true
         }
-        state[userId] = null;
-    }
+    });
+});
 
-    // Admin o‘chirish
-    else if (state[userId] === 'remove_admin') {
-        const remId = parseInt(text);
-        if (adminList.includes(remId) && remId !== ownerId) {
-            adminList = adminList.filter(id => id !== remId);
-            bot.sendMessage(chatId, `🗑 Admin o‘chirildi: \`${remId}\``, { parse_mode: 'Markdown' });
-        } else {
-            bot.sendMessage(chatId, `❌ Bu ID topilmadi yoki bu siz (asosiy admin).`);
-        }
-        state[userId] = null;
+// Admin users tugmasi
+bot.on("message", (msg) => {
+    const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) return;
+
+    if (msg.text === "📋 Users") {
+        bot.sendDocument(chatId, infoPath);
     }
 });
