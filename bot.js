@@ -3,10 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 // Bot tokenini shu yerga yozing
-const token = "7073645826:AAFlFBzQXmPraHKIQK2xKYD_OTjBl0Xi3l8";
+const token = "BOT_TOKENNI_QOYING";
 
 // Admin ID
-const ADMIN_ID = 6340507558;
+const ADMIN_ID = ADMIN_IDNI_QOYING;
 
 const bot = new TelegramBot(token, { polling: true });
 
